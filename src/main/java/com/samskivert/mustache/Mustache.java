@@ -4,13 +4,17 @@
 
 package com.samskivert.mustache;
 
+import j2me.java.io.StringReader;
+import j2me.java.lang.StringBuilder;
+import j2me.java.util.ArrayList;
+import j2me.java.util.Iterator;
+import j2me.java.util.List;
+
 import java.io.IOException;
 import java.io.Reader;
-import java.io.StringReader;
 import java.io.Writer;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+
+import com.samskivert.mustache.Template.Segment;
 
 /**
  * Provides <a href="http://mustache.github.com/">Mustache</a> templating services.
@@ -142,7 +146,7 @@ public class Mustache
     {
         /** Returns an iterator that can iterate over the supplied value, or null if the value is
          * not a collection. */
-        Iterator<?> toIterator (final Object value);
+        Iterator toIterator (final Object value);
 
         /** Creates a fetcher for a so-named variable in the supplied context object, which will
          * never be null. The fetcher will be cached and reused for future contexts for which
@@ -155,7 +159,7 @@ public class Mustache
      */
     public static Compiler compiler ()
     {
-        return new Compiler(true, false, null, true, FAILING_LOADER, new DefaultCollector());
+        return new Compiler(true, false, null, true, FAILING_LOADER, new BasicCollector());
     }
 
     /**
@@ -179,8 +183,9 @@ public class Mustache
 
     protected static String escapeHTML (String text)
     {
-        for (String[] escape : ATTR_ESCAPES) {
-            text = text.replace(escape[0], escape[1]);
+        for (int i = 0;i < ATTR_ESCAPES.length;i++) {
+        	String[] escape = ATTR_ESCAPES[i];
+            text = Utils.textReplace(text, escape[0], escape[1]);
         }
         return text;
     }
@@ -367,7 +372,7 @@ public class Mustache
             String errmsg = "Invalid delimiter configuration '" + dtext + "'. Must be of the " +
                 "form {{=1 2=}} or {{=12 34=}} where 1, 2, 3 and 4 are delimiter chars.";
 
-            String[] delims = dtext.split(" ");
+            String[] delims = Utils.split(dtext, " ");
             if (delims.length != 2) throw new MustacheException(errmsg);
 
             switch (delims[0].length()) {
@@ -425,15 +430,15 @@ public class Mustache
             case '#':
                 requireNoNewlines(tag, tagLine);
                 return new Accumulator(_compiler) {
-                    @Override public boolean justOpenedOrClosedBlock () {
+                     public boolean justOpenedOrClosedBlock () {
                         // if we just opened this section, we'll have no segments
                         return (_segs.isEmpty()) || super.justOpenedOrClosedBlock();
                     }
-                    @Override public Template.Segment[] finish () {
+                     public Template.Segment[] finish () {
                         throw new MustacheParseException(
                             "Section missing close tag '" + tag1 + "'", tagLine);
                     }
-                    @Override protected Accumulator addCloseSectionSegment (String itag, int line) {
+                     protected Accumulator addCloseSectionSegment (String itag, int line) {
                         requireSameName(tag1, itag, line);
                         outer._segs.add(new SectionSegment(itag, super.finish(), tagLine));
                         return outer;
@@ -447,15 +452,15 @@ public class Mustache
             case '^':
                 requireNoNewlines(tag, tagLine);
                 return new Accumulator(_compiler) {
-                    @Override public boolean justOpenedOrClosedBlock () {
+                     public boolean justOpenedOrClosedBlock () {
                         // if we just opened this section, we'll have no segments
                         return (_segs.isEmpty()) || super.justOpenedOrClosedBlock();
                     }
-                    @Override public Template.Segment[] finish () {
+                     public Template.Segment[] finish () {
                         throw new MustacheParseException(
                             "Inverted section missing close tag '" + tag1 + "'", tagLine);
                     }
-                    @Override protected Accumulator addCloseSectionSegment (String itag, int line) {
+                     protected Accumulator addCloseSectionSegment (String itag, int line) {
                         requireSameName(tag1, itag, line);
                         outer._segs.add(new InvertedSectionSegment(itag, super.finish(), tagLine));
                         return outer;
@@ -483,7 +488,7 @@ public class Mustache
         }
 
         public Template.Segment[] finish () {
-            return _segs.toArray(new Template.Segment[_segs.size()]);
+            return (Segment[]) _segs.toArray(new Template.Segment[_segs.size()]);
         }
 
         protected Accumulator addCloseSectionSegment (String tag, int line) {
@@ -507,7 +512,7 @@ public class Mustache
         }
 
         protected Compiler _compiler;
-        protected final List<Template.Segment> _segs = new ArrayList<Template.Segment>();
+        protected final List _segs = (List) new ArrayList();
     }
 
     /** A simple segment that reproduces a string. */
@@ -515,7 +520,7 @@ public class Mustache
         public StringSegment (String text) {
             _text = text;
         }
-        @Override public void execute (Template tmpl, Template.Context ctx, Writer out) {
+         public void execute (Template tmpl, Template.Context ctx, Writer out) {
             write(out, _text);
         }
         protected final String _text;
@@ -535,7 +540,7 @@ public class Mustache
             }
             _template = compiler.compile(r);
         }
-        @Override public void execute (Template tmpl, Template.Context ctx, Writer out) {
+         public void execute (Template tmpl, Template.Context ctx, Writer out) {
             // we must take care to preserve our context rather than creating a new one, which
             // would happen if we just called execute() with ctx.data
             _template.executeSegs(ctx, out);
@@ -559,7 +564,7 @@ public class Mustache
             super(name, line);
             _escapeHTML = escapeHTML;
         }
-        @Override public void execute (Template tmpl, Template.Context ctx, Writer out)  {
+         public void execute (Template tmpl, Template.Context ctx, Writer out)  {
             Object value = tmpl.getValueOrDefault(ctx, _name, _line);
             if (value == null) {
                 throw new MustacheException(
@@ -578,7 +583,8 @@ public class Mustache
             _segs = segs;
         }
         protected void executeSegs (Template tmpl, Template.Context ctx, Writer out)  {
-            for (Template.Segment seg : _segs) {
+            for (int i=0;i<_segs.length;i++) {
+            	Template.Segment seg = _segs[i];
                 seg.execute(tmpl, ctx, out);
             }
         }
@@ -590,9 +596,9 @@ public class Mustache
         public SectionSegment (String name, Template.Segment[] segs, int line) {
             super(name, segs, line);
         }
-        @Override public void execute (Template tmpl, Template.Context ctx, Writer out)  {
+         public void execute (Template tmpl, Template.Context ctx, Writer out)  {
             Object value = tmpl.getSectionValue(ctx, _name, _line); // won't return null
-            Iterator<?> iter = tmpl._compiler.collector.toIterator(value);
+            Iterator iter = tmpl._compiler.collector.toIterator(value);
             if (iter != null) {
                 int index = 0;
                 while (iter.hasNext()) {
@@ -601,7 +607,7 @@ public class Mustache
                     executeSegs(tmpl, ctx.nest(elem, ++index, onFirst, onLast), out);
                 }
             } else if (value instanceof Boolean) {
-                if ((Boolean)value) {
+                if ((boolean)value.equals(new Boolean(true))) {
                     executeSegs(tmpl, ctx, out);
                 }
             } else {
@@ -615,15 +621,15 @@ public class Mustache
         public InvertedSectionSegment (String name, Template.Segment[] segs, int line) {
             super(name, segs, line);
         }
-        @Override public void execute (Template tmpl, Template.Context ctx, Writer out)  {
+         public void execute (Template tmpl, Template.Context ctx, Writer out)  {
             Object value = tmpl.getSectionValue(ctx, _name, _line); // won't return null
-            Iterator<?> iter = tmpl._compiler.collector.toIterator(value);
+            Iterator iter = tmpl._compiler.collector.toIterator(value);
             if (iter != null) {
                 if (!iter.hasNext()) {
                     executeSegs(tmpl, ctx, out);
                 }
             } else if (value instanceof Boolean) {
-                if (!(Boolean)value) {
+                if (!(boolean)value.equals(new Boolean(true))) {
                     executeSegs(tmpl, ctx, out);
                 }
             } // TODO: fail?

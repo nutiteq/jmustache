@@ -5,12 +5,16 @@
 package com.samskivert.mustache;
 
 import java.io.IOException;
-import java.io.StringWriter;
 import java.io.Writer;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
+
+import com.samskivert.mustache.Mustache.VariableFetcher;
+
+import javolution.util.FastMap;
+
+import j2me.java.io.StringWriter;
+import j2me.java.util.Collections;
+import j2me.java.util.Iterator;
+import j2me.java.util.Map;
 
 /**
  * Represents a compiled template. Templates are executed with a <em>context</em> to generate
@@ -77,7 +81,8 @@ public class Template
 
     protected void executeSegs (Context ctx, Writer out) throws MustacheException
     {
-        for (Segment seg : _segs) {
+        for (int i=0;i<_segs.length;i++) {
+        	Segment seg = _segs[i];
             seg.execute(this, ctx, out);
         }
     }
@@ -99,7 +104,7 @@ public class Template
             // if we're dealing with a compound key, resolve each component and use the result to
             // resolve the subsequent component and so forth
             if (name != DOT_NAME && name.indexOf(DOT_NAME) != -1) {
-                String[] comps = name.split("\\.");
+                String[] comps = Utils.split(name,"\\.");
                 // we want to allow the first component of a compound key to be located in a parent
                 // context, but once we're selecting sub-components, they must only be resolved in
                 // the object that represents that component
@@ -123,11 +128,11 @@ public class Template
 
         // handle our special variables
         if (name == FIRST_NAME) {
-            return ctx.onFirst;
+            return new Boolean(ctx.onFirst);
         } else if (name == LAST_NAME) {
-            return ctx.onLast;
+            return new Boolean(ctx.onLast);
         } else if (name == INDEX_NAME) {
-            return ctx.index;
+            return new Integer(ctx.index);
         }
 
         // if we're in standards mode, we don't search our parent contexts
@@ -192,7 +197,7 @@ public class Template
         Key key = new Key(data.getClass(), name);
         Mustache.VariableFetcher fetcher;
         synchronized (_fcache) {
-            fetcher = _fcache.get(key);
+            fetcher = (VariableFetcher) _fcache.get(key);
         }
         if (fetcher != null) {
             try {
@@ -236,8 +241,7 @@ public class Template
 
     protected final Segment[] _segs;
     protected final Mustache.Compiler _compiler;
-    protected final Map<Key, Mustache.VariableFetcher> _fcache =
-        new HashMap<Key, Mustache.VariableFetcher>();
+    protected final Map _fcache = new FastMap();
 
     protected static class Context
     {
@@ -277,19 +281,19 @@ public class Template
     /** Used to cache variable fetchers for a given context class, name combination. */
     protected static class Key
     {
-        public final Class<?> cclass;
+        public final Class cclass;
         public final String name;
 
-        public Key (Class<?> cclass, String name) {
+        public Key (Class cclass, String name) {
             this.cclass = cclass;
             this.name = name;
         }
 
-        @Override public int hashCode () {
+         public int hashCode () {
             return cclass.hashCode() * 31 + name.hashCode();
         }
 
-        @Override public boolean equals (Object other) {
+         public boolean equals (Object other) {
             Key okey = (Key)other;
             return okey.cclass == cclass && okey.name == name;
         }

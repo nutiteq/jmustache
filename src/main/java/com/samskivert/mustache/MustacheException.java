@@ -20,10 +20,10 @@ public class MustacheException extends RuntimeException
     }
 
     public MustacheException (Throwable cause) {
-        super(cause);
+        super();
     }
 
     public MustacheException (String message, Throwable cause) {
-        super(message, cause);
+        super(message);
     }
 }
